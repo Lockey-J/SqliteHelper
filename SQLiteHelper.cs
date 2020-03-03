@@ -39,6 +39,7 @@ namespace System.Data.SQLite.SQLiteHelper
         {
             if (!RWL.ContainsKey(dataFile))
             {
+                LockName = dataFile;
                 RWL.Add(dataFile, new ClsLock());
             }
             this.mdataFile = dataFile ?? throw new ArgumentNullException("dataFile=null");
@@ -53,6 +54,7 @@ namespace System.Data.SQLite.SQLiteHelper
         {
             if (!RWL.ContainsKey(dataFile))
             {
+                LockName = dataFile;
                 RWL.Add(dataFile, new ClsLock());
             }
             this.mdataFile = dataFile ?? throw new ArgumentNullException("dataFile is null");
@@ -101,10 +103,17 @@ namespace System.Data.SQLite.SQLiteHelper
                 try
                 {
                     this.mConn.Close();
+                    if (RWL.ContainsKey(LockName))
+                    {
+                        
+                        RWL.Remove(LockName);
+                    }
+                    
                 }
                 catch
                 {
                 }
+            
             }
         }
 
