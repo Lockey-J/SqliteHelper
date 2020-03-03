@@ -11,14 +11,18 @@ namespace System.Data.SQLite.SQLiteHelper
 {
     public class SQLiteHelper
     {
-        
+
         /// <summary>
         /// 数据读取定义
         /// </summary>
         /// 
         //private SQLiteDataReader dataReader;
         private Common.DbTransaction DBtrans;
-        private static readonly Dictionary<string, ClsLock> RWL=new Dictionary<string, ClsLock>();
+
+        /// <summary>
+        /// 使用静态变量字典解决多线程实例本类，实现一个数据库对应一个clslock
+        /// </summary>
+        private static readonly Dictionary<string, ClsLock> RWL = new Dictionary<string, ClsLock>();
         /// <summary>
         /// 数据库地址
         /// </summary>
@@ -37,13 +41,13 @@ namespace System.Data.SQLite.SQLiteHelper
         /// <param name="dataFile">数据库地址</param>
         public SQLiteHelper(string dataFile)
         {
+            this.mdataFile = dataFile ?? throw new ArgumentNullException("dataFile=null");
+            this.mdataFile = AppDomain.CurrentDomain.BaseDirectory + dataFile;
             if (!RWL.ContainsKey(dataFile))
             {
                 LockName = dataFile;
                 RWL.Add(dataFile, new ClsLock());
             }
-            this.mdataFile = dataFile ?? throw new ArgumentNullException("dataFile=null");
-            this.mdataFile = AppDomain.CurrentDomain.BaseDirectory + dataFile;
         }
         /// <summary>
         /// 使用密码打开数据库
@@ -52,14 +56,15 @@ namespace System.Data.SQLite.SQLiteHelper
         /// <param name="PassWord">数据库密码</param>
         public SQLiteHelper(string dataFile, string PassWord)
         {
+
+            this.mdataFile = dataFile ?? throw new ArgumentNullException("dataFile is null");
+            this.mPassWord = PassWord ?? throw new ArgumentNullException("PassWord is null");
+            this.mdataFile = AppDomain.CurrentDomain.BaseDirectory + dataFile;
             if (!RWL.ContainsKey(dataFile))
             {
                 LockName = dataFile;
                 RWL.Add(dataFile, new ClsLock());
             }
-            this.mdataFile = dataFile ?? throw new ArgumentNullException("dataFile is null");
-            this.mPassWord = PassWord ?? throw new ArgumentNullException("PassWord is null");
-            this.mdataFile = AppDomain.CurrentDomain.BaseDirectory + dataFile;
         }
         /// <summary>  
         /// <para>打开SQLiteManager使用的数据库连接</para>  
@@ -92,7 +97,7 @@ namespace System.Data.SQLite.SQLiteHelper
                 DBtrans.Rollback();
             }
         }
- 
+
         /// <summary>  
         /// <para>安静地关闭连接,保存不抛出任何异常</para>  
         /// </summary>  
@@ -105,15 +110,15 @@ namespace System.Data.SQLite.SQLiteHelper
                     this.mConn.Close();
                     if (RWL.ContainsKey(LockName))
                     {
-                        
+
                         RWL.Remove(LockName);
                     }
-                    
+
                 }
                 catch
                 {
                 }
-            
+
             }
         }
 
@@ -191,11 +196,11 @@ namespace System.Data.SQLite.SQLiteHelper
         {
             get
             {
-                return this.mConn;
+                return mConn;
             }
-            set
+            private set
             {
-                this.mConn = value ?? throw new ArgumentNullException();
+                mConn = value ?? throw new ArgumentNullException();
             }
         }
 
@@ -257,27 +262,27 @@ namespace System.Data.SQLite.SQLiteHelper
                 throw new ArgumentNullException("sql=null");
             }
             EnsureConnection();
-
-            using (SQLiteCommand cmd = new SQLiteCommand(sql, Connection))
+            using (RWL[LockName].Read())
             {
-                if (paramArr != null)
+                using (SQLiteCommand cmd = new SQLiteCommand(sql, Connection))
                 {
-                    cmd.Parameters.AddRange(paramArr);
-                }
-                try
-                {
-                    SQLiteDataReader reader = cmd.ExecuteReader();
-                    cmd.Parameters.Clear();
-                    return reader;
-                }
-                catch (Exception)
-                {
+                    if (paramArr != null)
+                    {
+                        cmd.Parameters.AddRange(paramArr);
+                    }
+                    try
+                    {
+                        SQLiteDataReader reader = cmd.ExecuteReader();
+                        cmd.Parameters.Clear();
+                        return reader;
+                    }
+                    catch (Exception)
+                    {
 
-                    return null;
+                        return null;
+                    }
                 }
             }
-
-
         }
         /// <summary>
         /// 执行查询，并返回dataset对象
@@ -292,29 +297,30 @@ namespace System.Data.SQLite.SQLiteHelper
                 throw new ArgumentNullException("sql=null");
             }
             this.EnsureConnection();
-
-            using (SQLiteCommand cmd = new SQLiteCommand(sql, this.Connection))
+            using (RWL[LockName].Read())
             {
-                if (paramArr != null)
+                using (SQLiteCommand cmd = new SQLiteCommand(sql, this.Connection))
                 {
-                    cmd.Parameters.AddRange(paramArr);
-                }
-                try
-                {
-                    SQLiteDataAdapter da = new SQLiteDataAdapter();
-                    DataSet ds = new DataSet();
-                    da.SelectCommand = cmd;
-                    da.Fill(ds);
-                    cmd.Parameters.Clear();
-                    da.Dispose();
-                    return ds;
-                }
-                catch (Exception)
-                {
-                    return null;
+                    if (paramArr != null)
+                    {
+                        cmd.Parameters.AddRange(paramArr);
+                    }
+                    try
+                    {
+                        SQLiteDataAdapter da = new SQLiteDataAdapter();
+                        DataSet ds = new DataSet();
+                        da.SelectCommand = cmd;
+                        da.Fill(ds);
+                        cmd.Parameters.Clear();
+                        da.Dispose();
+                        return ds;
+                    }
+                    catch (Exception)
+                    {
+                        return null;
+                    }
                 }
             }
-
 
         }
 
@@ -332,27 +338,29 @@ namespace System.Data.SQLite.SQLiteHelper
                 throw new ArgumentNullException("sql=null");
             }
             this.EnsureConnection();
-
-            using (SQLiteCommand cmd = new SQLiteCommand(sql, this.Connection))
+            using (RWL[LockName].Read())
             {
-                if (paramArr != null)
+                using (SQLiteCommand cmd = new SQLiteCommand(sql, this.Connection))
                 {
-                    cmd.Parameters.AddRange(paramArr);
-                }
-                try
-                {
+                    if (paramArr != null)
+                    {
+                        cmd.Parameters.AddRange(paramArr);
+                    }
+                    try
+                    {
 
-                    SQLiteDataAdapter da = new SQLiteDataAdapter();
-                    DataSet ds = new DataSet();
-                    da.SelectCommand = cmd;
-                    da.Fill(ds, strTable);
-                    cmd.Parameters.Clear();
-                    da.Dispose();
-                    return ds;
-                }
-                catch (Exception)
-                {
-                    return null;
+                        SQLiteDataAdapter da = new SQLiteDataAdapter();
+                        DataSet ds = new DataSet();
+                        da.SelectCommand = cmd;
+                        da.Fill(ds, strTable);
+                        cmd.Parameters.Clear();
+                        da.Dispose();
+                        return ds;
+                    }
+                    catch (Exception)
+                    {
+                        return null;
+                    }
                 }
             }
         }
@@ -372,28 +380,29 @@ namespace System.Data.SQLite.SQLiteHelper
                 throw new ArgumentNullException("sql=null");
             }
             this.EnsureConnection();
-
-            using (SQLiteCommand cmd = new SQLiteCommand(sql, Connection))
+            using (RWL[LockName].Read())
             {
-                if (paramArr != null)
+                using (SQLiteCommand cmd = new SQLiteCommand(sql, Connection))
                 {
+                    if (paramArr != null)
+                    {
 
-                    cmd.Parameters.AddRange(paramArr);
+                        cmd.Parameters.AddRange(paramArr);
 
-                }
-                try
-                {
-                    object reader = cmd.ExecuteScalar();
-                    cmd.Parameters.Clear();
-                    cmd.Dispose();
-                    return reader;
-                }
-                catch (Exception)
-                {
-                    return null;
+                    }
+                    try
+                    {
+                        object reader = cmd.ExecuteScalar();
+                        cmd.Parameters.Clear();
+                        cmd.Dispose();
+                        return reader;
+                    }
+                    catch (Exception)
+                    {
+                        return null;
+                    }
                 }
             }
-
         }
 
         #region 增删改
@@ -411,31 +420,35 @@ namespace System.Data.SQLite.SQLiteHelper
                 throw new ArgumentNullException("sql=null");
             }
             this.EnsureConnection();
-            //Dim mReaderWriterLock As New Threading.ReaderWriterLock
-            //mReaderWriterLock.AcquireWriterLock(3000)
-            try
+
+            using (RWL[LockName].Read())
             {
-                using (SQLiteCommand cmd = new SQLiteCommand(sql, Connection))
+
+                try
                 {
-                    if (paramArr != null)
+                    using (SQLiteCommand cmd = new SQLiteCommand(sql, Connection))
                     {
-                        foreach (SQLiteParameter p in paramArr)
+                        if (paramArr != null)
                         {
-                            cmd.Parameters.Add(p);
+                            foreach (SQLiteParameter p in paramArr)
+                            {
+                                cmd.Parameters.Add(p);
+                            }
                         }
+                        int c = cmd.ExecuteNonQuery();
+                        cmd.Parameters.Clear();
+                        return c;
                     }
-                    int c = cmd.ExecuteNonQuery();
-                    cmd.Parameters.Clear();
-                    return c;
                 }
-            }
-            catch (SQLiteException)
-            {
-                return 0;
-            }
-            finally
-            {
-                //mReaderWriterLock.ReleaseLock()
+                catch (SQLiteException)
+                {
+                    return 0;
+                }
+                finally
+                {
+
+                }
+
             }
 
         }
@@ -601,7 +614,7 @@ namespace System.Data.SQLite.SQLiteHelper
             {
                 sql += " where " + conditionCol + "=@" + conditionCol;
             }
-        
+
 
             object result = ExecuteScalar(sql, new SQLiteParameter[] { new SQLiteParameter(conditionCol, conditionVal) });
             return result;
